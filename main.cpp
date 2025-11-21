@@ -1,18 +1,142 @@
-#include <iostream>
-#include <windows.h>
-#include <winsock2.h>
-#pragma comment(lib, "ws2_32.lib") //æŒ‡å®šé“¾æ¥ ws2_32.lib åº“ï¼Œè¯¥åº“åŒ…å« Windows Sockets API çš„å®ç°ã€‚
-#define DEFAULT_PORT 8080
-#define DEFAULT_BUFLEN 512
+#include <winsock2.h> //°üº¬Windows Sockets APIµÄÍ·ÎÄ¼ş
+#include <windows.h> //°üº¬Windows ²Ù×÷ÏµÍ³µÄ»ù±¾¹¦ÄÜÍ·ÎÄ¼ş 
+#include <iostream> //ÓÃÓÚÊäÈëÊä³öÁ÷µÄÍ·ÎÄ¼ş
+#pragma comment(lib, "ws2_32.lib") // Ö¸¶¨Á´½Ó ws2_32.lib ¿â£¬¸Ã¿â°üº¬ Windows Sockets API µÄÊµÏÖ¡£
+#define DEFAULT_PORT 8080 //Ö¸¶¨¼àÌıµÄ¶Ë¿ÚºÅ
+#define DEFAULT_BUFLEN 512 //Ö¸¶¨½ÓÊÕ»º³åÇøµÄ´óĞ¡
+
 int main()
 {
-    WSADATA wsaData;
-    //åˆå§‹åŒ– winsock
-    int iResult = WSAStartup(MAKEWORD(2,2),&wsaData);//åˆå§‹åŒ–Winsockåº“ï¼ŒMAKEWORD(2,2)è¡¨ç¤ºä½¿ç”¨Winsock2.2ç‰ˆæœ¬ã€‚
-    if(iResult!=0)
+    WSADATA wsaData;//³õÊ¼»¯Winsock¿â£¬MAKEWORD(2,2)±íÊ¾Ê¹ÓÃWinsock2.2°æ±¾
+    // ³õÊ¼»¯ winsock
+    int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData); // ³õÊ¼»¯Winsock¿â£¬MAKEWORD(2,2)±íÊ¾Ê¹ÓÃWinsock2.2°æ±¾¡£
+    if (iResult != 0)
     {
-       std::cerr<<"WSAStartup failed: "<<iResult<<std::endl;
-       return 1;
+        std::cerr << "WSAStartup failed: " << iResult << std::endl;
+        return 1;
     }
 
+    // ´´½¨¼àÌıÌ×½Ó×Ö
+    SOCKET ListenSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (ListenSocket == INVALID_SOCKET)
+    {
+        std::cerr << "socket failed: " << WSAGetLastError() << std::endl;
+        WSACleanup();
+        return 1;
+    }
+
+    // °ó¶¨Ì×½Ó×Öµ½Ö¸¶¨µØÖ·ºÍ¶Ë¿Ú
+    sockaddr_in service;
+    service.sin_family = AF_INET;
+    service.sin_addr.s_addr = INADDR_ANY;
+    iResult = bind(ListenSocket, (SOCKADDR *)&service, sizeof(service));
+    if (iResult == SOCKET_ERROR)
+    {
+        std::cerr << "bind failed: " << WSAGetLastError() << std::endl;
+        closesocket(ListenSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    // ¿ªÊ¼¼àÌı
+    iResult = listen(ListenSocket, SOMAXCONN);
+    if (iResult == SOCKET_ERROR)
+    {
+        std::cerr << "bind failed:" << WSAGetLastError() << std::endl;
+        closesocket(ListenSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    // ´´½¨Ò»¸öÊÂ¼ş¶ÔÏó
+    WSAEVENT event = WSACreateEvent();
+    if (event == WSA_INVALID_EVENT)
+    {
+        std::cerr << "WSACreateEvent failed: " << WSAGetLastError() << std::endl;
+        closesocket(ListenSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    // ½«¼àÌıÌ×½Ó×ÖÓëÊÂ¼ş¶ÔÏó¹ØÁª£¬²¢Ö¸¶¨Òª¼àÌıµÄÍøÂçÊÂ¼ş(ÕâÀï½¨Í¨FD_ACCEPÊÂ¼ş£¬¼´ÓĞĞÂÁ¬½Óµ½À´)
+    iResult = WSAEventSelect(ListenSocket, event, FD_ACCEPT);
+    if (iResult == SOCKET_ERROR)
+    {
+        std::cerr << "WSAEventSelect failed: " << WSAGetLastError() << std::endl;
+        WSACloseEvent(event);
+        closesocket(ListenSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    // µÈ´ıÊÂ¼ş·¢Éú
+    while (true)
+    {
+        iResult = WSAWaitForMultipleEvents(1, &event, FALSE, WSA_INFINITE, FALSE);
+        if (iResult == WSA_WAIT_FAILED)
+        {
+            std::cerr << "WSAWaitForMultipleEvents  failed: " << WSAGetLastError() << std::endl;
+            break;
+        }
+
+        // ÖØÖÃÊÂ¼ş¶ÔÏó
+        iResult = WSAResetEvent(event);
+        if (iResult == FALSE)
+        {
+            std::cerr << "WSAResetEvent failed" << WSAGetLastError() << std::endl;
+            break;
+        }
+
+        // »ñÈ¡·¢ÉúµÄÍøÂçÊÂ¼ş
+        WSANETWORKEVENTS networkEvents;
+        iResult = WSAEnumNetworkEvents(ListenSocket, event, &networkEvents);
+        if (iResult == SOCKET_ERROR)
+        {
+            std::cerr << "WSAEnumNetworkEvents failed:" << WSAGetLastError() << std::endl;
+            break;
+        }
+
+        // ¼ì²éÊÇ·ñÓĞĞÂÁ¬½Óµ½À´
+        if (networkEvents.lNetworkEvents & FD_ACCEPT)
+        {
+            if (networkEvents.iErrorCode[FD_ACCEPT_BIT] != 0)
+            {
+                std::cerr << "FD_ACCEPT failed: " << networkEvents.iErrorCode[FD_ACCEPT_BIT] << std::endl;
+            }
+            else
+            {
+                // ½ÓÊÕĞÂÁ¬½Ó
+                SOCKET ClientSocket = accept(ListenSocket, NULL, NULL);
+                if (ClientSocket == INVALID_SOCKET)
+                {
+                    std::cerr << "accept failed: " << WSAGetLastError() << std::endl;
+                }
+                else
+                {
+                    std::cout << "New connection accepted." << std::endl;
+                    // ÕâÀï¿ÉÒÔ´¦Àí¿Í»§¶ËÁ¬½Ó£¬ÀıÈç½ÓÊÕºÍ·¢ËÍÊı¾İ
+                    char recvBuf[DEFAULT_BUFLEN];
+                    iResult = recv(ClientSocket, recvBuf, DEFAULT_BUFLEN, 0);
+                    if (iResult > 0)
+                    {
+                        std::cout << "Received: " << std::string(recvBuf, iResult) << std::endl;
+                    }
+                    else if (iResult == 0)
+                    {
+                        std::cout << "Connection closed." << std::endl;
+                    }
+                    else
+                    {
+                        std::cerr << "recv failed:" << WSAGetLastError() << std::endl;
+                    }
+                    closesocket(ClientSocket);
+                }
+            }
+        }
+        // ÇåÀí×ÊÔ´
+        WSACloseEvent(event);
+        closesocket(ListenSocket);
+        WSACleanup();
+        return 0;
+    }
 }
