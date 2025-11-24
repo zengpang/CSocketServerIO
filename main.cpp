@@ -12,24 +12,24 @@ int main()
     int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData); // 初始化Winsock库，MAKEWORD(2,2)表示使用Winsock2.2版本。
     if (iResult != 0)
     {
-        std::cerr << "WSAStartup failed: " << iResult << std::endl;
+        std::cerr << "WSAStartup failed: " << iResult << std::endl;//如果初始化失败，输出错误信息并返回
         return 1;
     }
 
     // 创建监听套接字
-    SOCKET ListenSocket = socket(AF_INET, SOCK_STREAM, 0);
+    SOCKET ListenSocket = socket(AF_INET, SOCK_STREAM, 0);//创建一个套接字,AF_INET表示使用IPv4地址族，SOCK_STREAM表示使用TCP协议
     if (ListenSocket == INVALID_SOCKET)
     {
-        std::cerr << "socket failed: " << WSAGetLastError() << std::endl;
+        std::cerr << "socket failed: " << WSAGetLastError() << std::endl;//创建失败,输出错误信息
         WSACleanup();
         return 1;
     }
 
     // 绑定套接字到指定地址和端口
-    sockaddr_in service;
+    sockaddr_in service;//定义一个IPV4地址结构体
     service.sin_family = AF_INET;
     service.sin_addr.s_addr = INADDR_ANY;
-    iResult = bind(ListenSocket, (SOCKADDR *)&service, sizeof(service));
+    iResult = bind(ListenSocket, (SOCKADDR *)&service, sizeof(service));//将套接字绑定到指定的地址和端口
     if (iResult == SOCKET_ERROR)
     {
         std::cerr << "bind failed: " << WSAGetLastError() << std::endl;
@@ -97,7 +97,7 @@ int main()
         }
 
         // 检查是否有新连接到来
-        if (networkEvents.lNetworkEvents & FD_ACCEPT)
+        if (networkEvents.lNetworkEvents & FD_ACCEPT) //检查是否有FD_ACCEPT事件发生
         {
             if (networkEvents.iErrorCode[FD_ACCEPT_BIT] != 0)
             {
@@ -106,20 +106,20 @@ int main()
             else
             {
                 // 接收新连接
-                SOCKET ClientSocket = accept(ListenSocket, NULL, NULL);
+                SOCKET ClientSocket = accept(ListenSocket, NULL, NULL);//如果有新连接到来，使用accept函数接受新连接
                 if (ClientSocket == INVALID_SOCKET)
                 {
-                    std::cerr << "accept failed: " << WSAGetLastError() << std::endl;
+                    std::cerr << "accept failed: " << WSAGetLastError() << std::endl;//输出错误信息
                 }
                 else
                 {
                     std::cout << "New connection accepted." << std::endl;
                     // 这里可以处理客户端连接，例如接收和发送数据
                     char recvBuf[DEFAULT_BUFLEN];
-                    iResult = recv(ClientSocket, recvBuf, DEFAULT_BUFLEN, 0);
+                    iResult = recv(ClientSocket, recvBuf, DEFAULT_BUFLEN, 0);//接受客户端发送的数据，并进行相应的处理
                     if (iResult > 0)
                     {
-                        std::cout << "Received: " << std::string(recvBuf, iResult) << std::endl;
+                        std::cout << "Received: " << std::string(recvBuf, iResult) << std::endl;//输出
                     }
                     else if (iResult == 0)
                     {
@@ -135,8 +135,8 @@ int main()
         }
         // 清理资源
         WSACloseEvent(event);
-        closesocket(ListenSocket);
-        WSACleanup();
+        closesocket(ListenSocket);//关闭监听套接字
+        WSACleanup();//清理Winsock资源
         return 0;
     }
 }
